@@ -24,11 +24,11 @@ export interface AlchemyGasManagerConfig {
  * @param estimateGas - if true, this will use `alchemy_requestGasAndPaymasterAndData` else will use `alchemy_requestPaymasterAndData`
  * @returns the provider augmented to use the alchemy gas manager
  */
-export const withAlchemyGasManager = (
-  provider: AlchemyProvider,
+export const withAlchemyGasManager = <P extends AlchemyProvider>(
+  provider: P,
   config: AlchemyGasManagerConfig,
   estimateGas: boolean = true
-): AlchemyProvider => {
+): P => {
   return estimateGas
     ? provider
         // no-op gas estimator
