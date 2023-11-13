@@ -8,7 +8,7 @@ import type { BigNumberish } from "../types";
  */
 export const bigIntMax = (...args: bigint[]) => {
   if (!args.length) {
-    throw new Error("bigIntMax requires at least one argument");
+    return undefined;
   }
 
   return args.reduce((m, c) => (m > c ? m : c));

@@ -22,6 +22,7 @@ import type {
 } from "../client/types.js";
 import {
   type BatchUserOperationCallData,
+  type Percentage,
   type UserOperationCallData,
   type UserOperationOverrides,
   type UserOperationReceipt,
@@ -30,11 +31,13 @@ import {
   type UserOperationStruct,
 } from "../types.js";
 import {
+  applyOverride,
   asyncPipe,
   bigIntMax,
   bigIntPercent,
   deepHexlify,
   defineReadOnly,
+  filterUndefined,
   getDefaultEntryPointAddress,
   getUserOperationHash,
   isValidRequest,
@@ -75,7 +78,7 @@ export class SmartAccountProvider<
   private txRetryMulitplier: number;
 
   private minPriorityFeePerBid: bigint;
-  private maxPriorityFeePerGasEstimateBuffer: number;
+  private maxPriorityFeePerGasEstimateBuffer: Percentage;
 
   readonly account?: ISmartContractAccount;
 
@@ -106,7 +109,7 @@ export class SmartAccountProvider<
       100_000_000n;
 
     this.maxPriorityFeePerGasEstimateBuffer =
-      opts?.maxPriorityFeePerGasEstimateBuffer ?? 33;
+      opts?.maxPriorityFeePerGasEstimateBuffer ?? { percentage: 33 };
 
     this.rpcClient =
       typeof rpcProvider === "string"
@@ -221,15 +224,19 @@ export class SmartAccountProvider<
       throw new Error("transaction is missing to address");
     }
 
-    const _overrides: UserOperationOverrides = {};
-    if (overrides?.maxFeePerGas || request.maxFeePerGas) {
-      _overrides.maxFeePerGas = overrides?.maxFeePerGas ?? request.maxFeePerGas;
-    }
-    if (overrides?.maxPriorityFeePerGas || request.maxPriorityFeePerGas) {
-      _overrides.maxPriorityFeePerGas =
-        overrides?.maxPriorityFeePerGas ?? request.maxPriorityFeePerGas;
-    }
-    _overrides.paymasterAndData = overrides?.paymasterAndData;
+    const _overrides: UserOperationOverrides = {
+      maxFeePerGas:
+        overrides?.maxFeePerGas ??
+        (request.maxFeePerGas
+          ? fromHex(request.maxFeePerGas, "bigint")
+          : undefined),
+      maxPriorityFeePerGas:
+        overrides?.maxPriorityFeePerGas ??
+        (request.maxPriorityFeePerGas
+          ? fromHex(request.maxPriorityFeePerGas, "bigint")
+          : undefined),
+    };
+    filterUndefined(_overrides);
 
     return this.buildUserOperation(
       {
@@ -259,26 +266,26 @@ export class SmartAccountProvider<
       };
     });
 
-    const maxFeePerGas = bigIntMax(
-      ...requests
-        .filter((x) => x.maxFeePerGas != null)
-        .map((x) => fromHex(x.maxFeePerGas!, "bigint"))
-    );
+    const maxFeePerGas =
+      overrides?.maxFeePerGas ??
+      bigIntMax(
+        ...requests
+          .filter((x) => x.maxFeePerGas != null)
+          .map((x) => fromHex(x.maxFeePerGas!, "bigint"))
+      );
+    const maxPriorityFeePerGas =
+      overrides?.maxPriorityFeePerGas ??
+      bigIntMax(
+        ...requests
+          .filter((x) => x.maxPriorityFeePerGas != null)
+          .map((x) => fromHex(x.maxPriorityFeePerGas!, "bigint"))
+      );
 
-    const maxPriorityFeePerGas = bigIntMax(
-      ...requests
-        .filter((x) => x.maxPriorityFeePerGas != null)
-        .map((x) => fromHex(x.maxPriorityFeePerGas!, "bigint"))
-    );
-    const _overrides: UserOperationOverrides = {};
-    if (overrides?.maxFeePerGas || maxFeePerGas != null) {
-      _overrides.maxFeePerGas = overrides?.maxFeePerGas ?? maxFeePerGas;
-    }
-
-    if (overrides?.maxPriorityFeePerGas || maxPriorityFeePerGas != null) {
-      _overrides.maxPriorityFeePerGas =
-        overrides?.maxPriorityFeePerGas ?? maxPriorityFeePerGas;
-    }
+    const _overrides: UserOperationOverrides = {
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+    };
+    filterUndefined(_overrides);
 
     return {
       batch,
@@ -432,8 +439,8 @@ export class SmartAccountProvider<
       this.feeDataGetter,
       this.gasEstimator,
       // run this before paymaster middleware
-      async (struct) => ({ ...struct, ...overrides }),
-      this.customMiddleware,
+      async (struct) => this.applyUserOperationOverrides(struct, overrides),
+      this.customMiddleware ?? noOpMiddleware,
       overrides?.paymasterAndData
         ? noOpMiddleware
         : this.paymasterDataMiddleware,
@@ -477,6 +484,36 @@ export class SmartAccountProvider<
     };
   };
 
+  private applyUserOperationOverrides = async (
+    struct: Deferrable<UserOperationStruct>,
+    overrides?: UserOperationOverrides
+  ): Promise<Deferrable<UserOperationStruct>> => {
+    const _struct = await resolveProperties(struct);
+
+    struct.maxPriorityFeePerGas = applyOverride(
+      _struct.maxPriorityFeePerGas,
+      overrides?.maxPriorityFeePerGas
+    );
+    struct.maxFeePerGas = applyOverride(
+      _struct.maxFeePerGas,
+      overrides?.maxFeePerGas
+    );
+    struct.callGasLimit = applyOverride(
+      _struct.callGasLimit,
+      overrides?.callGasLimit
+    );
+    struct.verificationGasLimit = applyOverride(
+      _struct.verificationGasLimit,
+      overrides?.verificationGasLimit
+    );
+    struct.preVerificationGas = applyOverride(
+      _struct.preVerificationGas,
+      overrides?.preVerificationGas
+    );
+
+    return struct;
+  };
+
   // These are dependent on the specific paymaster being used
   // You should implement your own middleware to override these
   // or extend this class and provider your own implemenation
@@ -517,12 +554,12 @@ export class SmartAccountProvider<
       );
     }
 
-    // set maxPriorityFeePerGasBid to the max between 33% added priority fee estimate and
-    // the min priority fee per gas set for the provider
+    // set maxPriorityFeePerGasBid to the max between the buffer (default 33%) added
+    // priority fee estimate value and the min priority fee per gas set for the provider
     const maxPriorityFeePerGasBid = bigIntMax(
       bigIntPercent(
         maxPriorityFeePerGas,
-        BigInt(100 + this.maxPriorityFeePerGasEstimateBuffer)
+        BigInt(100 + this.maxPriorityFeePerGasEstimateBuffer.percentage)
       ),
       this.minPriorityFeePerBid
     );
@@ -530,7 +567,7 @@ export class SmartAccountProvider<
     const maxFeePerGasBid =
       BigInt(feeData.maxFeePerGas) -
       BigInt(feeData.maxPriorityFeePerGas) +
-      maxPriorityFeePerGasBid;
+      maxPriorityFeePerGasBid!;
 
     struct.maxFeePerGas = maxFeePerGasBid;
     struct.maxPriorityFeePerGas = maxPriorityFeePerGasBid;

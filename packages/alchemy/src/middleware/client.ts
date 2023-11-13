@@ -1,3 +1,4 @@
+import type { UserOperationOverrides } from "@alchemy/aa-core";
 import {
   type PublicErc4337Client,
   type UserOperationRequest,
@@ -30,10 +31,14 @@ export type ClientWithAlchemyMethods = PublicErc4337Client & {
             entryPoint: Address;
             userOperation: UserOperationRequest;
             dummySignature: Hex;
-            feeOverride?: {
-              maxFeePerGas: Hex;
-              maxPriorityFeePerGas: Hex;
-            };
+            overrides?: Pick<
+              UserOperationOverrides,
+              | "maxFeePerGas"
+              | "maxPriorityFeePerGas"
+              | "callGasLimit"
+              | "preVerificationGas"
+              | "verificationGasLimit"
+            >;
           }
         ];
       }): Promise<{

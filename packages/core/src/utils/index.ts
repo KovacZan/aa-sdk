@@ -1,7 +1,14 @@
 import type { Address, Hash, Hex } from "viem";
 import { encodeAbiParameters, hexToBigInt, keccak256, toHex } from "viem";
 import * as chains from "viem/chains";
-import type { PromiseOrValue, UserOperationRequest } from "../types.js";
+import {
+  type BigNumberish,
+  type Percentage,
+  type PromiseOrValue,
+  type UserOperationRequest,
+} from "../types.js";
+import { bigIntPercent } from "./bigint.js";
+import { BigNumberishSchema, PercentageSchema } from "./schema.js";
 
 /**
  * Utility method for converting a chainId to a {@link chains.Chain} object
@@ -110,6 +117,21 @@ export function getUserOperationHash(
   return keccak256(encoded);
 }
 
+export function applyOverride(
+  value: BigNumberish | undefined,
+  override: BigNumberish | Percentage | undefined
+): BigNumberish | undefined {
+  if (override === undefined) {
+    return value;
+  } else if (isBigNumberish(override)) {
+    return override;
+  } else {
+    return value
+      ? bigIntPercent(value, BigInt(100 + override.percentage))
+      : undefined;
+  }
+}
+
 function packUo(request: UserOperationRequest): Hex {
   const hashedInitCode = keccak256(request.initCode);
   const hashedCallData = keccak256(request.callData);
@@ -154,6 +176,29 @@ export function defineReadOnly<T, K extends keyof T>(
     value: value,
     writable: false,
   });
+}
+
+export const isBigNumberish = (x: any): x is BigNumberish =>
+  BigNumberishSchema.safeParse(x).success;
+
+export const isPercentage = (x: any): x is Percentage =>
+  PercentageSchema.safeParse(x).success;
+
+export function filterUndefined(
+  obj: Record<string, unknown>
+): Record<string, unknown> {
+  Object.keys(obj).forEach((key) => {
+    if (obj[key] === undefined) {
+      delete obj[key];
+    }
+  });
+  return obj;
+}
+
+export function pick(obj: Record<string, unknown>, keys: string | string[]) {
+  return Object.keys(obj)
+    .filter((k) => keys.includes(k))
+    .reduce((res, k) => Object.assign(res, { [k]: obj[k] }), {});
 }
 
 export * from "./bigint.js";

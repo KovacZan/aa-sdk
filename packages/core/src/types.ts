@@ -1,12 +1,21 @@
 import type { Address, Hash } from "viem";
+import { z } from "zod";
+import type { UserOperationOverridesSchema } from "./schema";
+import {
+  BigNumberishSchema,
+  HexSchema,
+  PercentageSchema,
+} from "./utils/index.js";
 
-export type Hex = `0x${string}`;
+export type Hex = z.infer<typeof HexSchema>;
 export type EmptyHex = `0x`;
 
 // based on @account-abstraction/common
 export type PromiseOrValue<T> = T | Promise<T>;
-export type BigNumberish = string | bigint | number;
+export type BigNumberish = z.infer<typeof BigNumberishSchema>;
 export type BytesLike = Uint8Array | string;
+
+export type Percentage = z.infer<typeof PercentageSchema>;
 
 export interface UserOperationCallData {
   /* the target of the call */
@@ -19,11 +28,8 @@ export interface UserOperationCallData {
 
 export type BatchUserOperationCallData = UserOperationCallData[];
 
-export type UserOperationOverrides = Partial<
-  Pick<
-    UserOperationStruct,
-    "maxFeePerGas" | "maxPriorityFeePerGas" | "paymasterAndData"
-  >
+export type UserOperationOverrides = z.infer<
+  typeof UserOperationOverridesSchema
 >;
 
 // represents the request as it needs to be formatted for RPC requests

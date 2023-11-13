@@ -3,7 +3,7 @@ import type { Transport } from "viem";
 import z from "zod";
 import { createPublicErc4337ClientSchema } from "../client/schema.js";
 import type { SupportedTransports } from "../client/types";
-import { ChainSchema } from "../utils/index.js";
+import { ChainSchema, PercentageSchema } from "../utils/index.js";
 
 export const SmartAccountProviderOptsSchema = z.object({
   /**
@@ -27,10 +27,10 @@ export const SmartAccountProviderOptsSchema = z.object({
   minPriorityFeePerBid: z.bigint().min(0n).optional(),
 
   /**
-   * Percent value for maxPriorityFeePerGas estimate added buffer. maxPriorityFeePerGasBid is set to the max
+   * Percentage for maxPriorityFeePerGas estimate added buffer. maxPriorityFeePerGasBid is set to the max
    * between the buffer "added" priority fee estimate and the minPriorityFeePerBid (default: 33)
    */
-  maxPriorityFeePerGasEstimateBuffer: z.number().min(0).optional(),
+  maxPriorityFeePerGasEstimateBuffer: PercentageSchema.optional(),
 });
 
 export const createSmartAccountProviderConfigSchema = <

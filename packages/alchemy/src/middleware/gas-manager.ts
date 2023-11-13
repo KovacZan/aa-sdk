@@ -112,13 +112,16 @@ const withAlchemyGasAndPaymasterAndDataMiddleware = (
       await resolveProperties(struct)
     );
 
-    let feeOverride = undefined;
-    if (userOperation.maxFeePerGas && BigInt(userOperation.maxFeePerGas) > 0n) {
-      feeOverride = {
-        maxFeePerGas: userOperation.maxFeePerGas,
-        maxPriorityFeePerGas: userOperation.maxPriorityFeePerGas,
-      };
-    }
+    const overrides =
+      userOperation.maxFeePerGas && BigInt(userOperation.maxFeePerGas) > 0n
+        ? {
+            maxFeePerGas: userOperation.maxFeePerGas,
+            maxPriorityFeePerGas: userOperation.maxPriorityFeePerGas,
+            callGasLimit: userOperation.callGasLimit,
+            verificationGasLimit: userOperation.verificationGasLimit,
+            preVerificationGas: userOperation.preVerificationGas,
+          }
+        : undefined;
 
     const result = await (
       provider.rpcClient as ClientWithAlchemyMethods
@@ -130,7 +133,7 @@ const withAlchemyGasAndPaymasterAndDataMiddleware = (
           entryPoint: provider.getEntryPointAddress(),
           userOperation: userOperation,
           dummySignature: userOperation.signature,
-          feeOverride: feeOverride,
+          overrides,
         },
       ],
     });
