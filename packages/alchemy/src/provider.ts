@@ -1,3 +1,4 @@
+import type { UserOperationFeeOverrides } from "@alchemy/aa-core";
 import {
   SmartAccountProvider,
   createPublicErc4337Client,
@@ -13,8 +14,10 @@ import { type HttpTransport } from "viem";
 import {
   arbitrum,
   arbitrumGoerli,
+  arbitrumSepolia,
   optimism,
   optimismGoerli,
+  optimismSepolia,
 } from "viem/chains";
 import { SupportedChains } from "./chains.js";
 import type { ClientWithAlchemyMethods } from "./middleware/client.js";
@@ -31,15 +34,19 @@ import {
 import type { AlchemyProviderConfig } from "./type.js";
 
 export class AlchemyProvider extends SmartAccountProvider<HttpTransport> {
-  private pvgBuffer: bigint;
-  private feeOptsSet: boolean;
+  private feeOverrides: UserOperationFeeOverrides;
   private rpcUrl: string;
 
   constructor(config: AlchemyProviderConfig) {
     AlchemyProviderConfigSchema.parse(config);
 
-    const { chain, entryPointAddress, opts, feeOpts, ...connectionConfig } =
-      config;
+    const {
+      chain,
+      entryPointAddress,
+      opts,
+      feeOverrides,
+      ...connectionConfig
+    } = config;
     const _chain =
       typeof chain === "number" ? SupportedChains.get(chain) : chain;
     if (!_chain || !_chain.rpcUrls["alchemy"]) {
@@ -70,29 +77,32 @@ export class AlchemyProvider extends SmartAccountProvider<HttpTransport> {
       opts,
     });
 
-    withAlchemyGasFeeEstimator(
-      this,
-      feeOpts?.baseFeeBufferPercent ?? 50n,
-      feeOpts?.maxPriorityFeeBufferPercent ?? 5n
-    );
+    this.feeOverrides = feeOverrides ?? {
+      maxFeePerGas: { percentage: 50 },
+      maxPriorityFeePerGas: { percentage: 5 },
+    };
 
-    if (feeOpts?.preVerificationGasBufferPercent) {
-      this.pvgBuffer = feeOpts?.preVerificationGasBufferPercent;
-    } else if (
+    if (
       new Set<number>([
         arbitrum.id,
         arbitrumGoerli.id,
+        arbitrumSepolia.id,
         optimism.id,
         optimismGoerli.id,
+        optimismSepolia.id,
       ]).has(this.chain.id)
     ) {
-      this.pvgBuffer = 5n;
-    } else {
-      this.pvgBuffer = 0n;
+      this.feeOverrides.preVerificationGas = { percentage: 5 };
     }
 
-    this.feeOptsSet = !!feeOpts;
+    withAlchemyGasFeeEstimator(this, this.feeOverrides);
+
     this.rpcUrl = rpcUrl;
+  }
+
+  setFeeOverrides(feeOverrides: UserOperationFeeOverrides): void {
+    this.feeOverrides = feeOverrides;
+    withAlchemyGasFeeEstimator(this, this.feeOverrides);
   }
 
   override gasEstimator: AccountMiddlewareFn = async (struct) => {

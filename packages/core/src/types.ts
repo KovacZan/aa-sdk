@@ -1,6 +1,9 @@
 import type { Address, Hash } from "viem";
 import { z } from "zod";
-import type { UserOperationOverridesSchema } from "./schema";
+import type {
+  UserOperationFeeOverridesSchema,
+  UserOperationOverridesSchema,
+} from "./schema";
 import {
   BigNumberishSchema,
   HexSchema,
@@ -27,6 +30,10 @@ export interface UserOperationCallData {
 }
 
 export type BatchUserOperationCallData = UserOperationCallData[];
+
+export type UserOperationFeeOverrides = z.infer<
+  typeof UserOperationFeeOverridesSchema
+>;
 
 export type UserOperationOverrides = z.infer<
   typeof UserOperationOverridesSchema

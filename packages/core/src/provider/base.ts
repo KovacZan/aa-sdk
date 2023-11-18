@@ -484,7 +484,7 @@ export class SmartAccountProvider<
     };
   };
 
-  private applyUserOperationOverrides = async (
+  protected applyUserOperationOverrides = async (
     struct: Deferrable<UserOperationStruct>,
     overrides?: UserOperationOverrides
   ): Promise<Deferrable<UserOperationStruct>> => {

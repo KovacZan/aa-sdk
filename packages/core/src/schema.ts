@@ -10,13 +10,17 @@ export const UserOperationFeeOverridesFieldSchema = z.union([
   PercentageSchema,
 ]);
 
-export const UserOperationOverridesSchema = z
+export const UserOperationFeeOverridesSchema = z
   .object({
     maxFeePerGas: UserOperationFeeOverridesFieldSchema,
     maxPriorityFeePerGas: UserOperationFeeOverridesFieldSchema,
     callGasLimit: UserOperationFeeOverridesFieldSchema,
     verificationGasLimit: UserOperationFeeOverridesFieldSchema,
     preVerificationGas: UserOperationFeeOverridesFieldSchema,
-    paymasterAndData: HexSchema,
   })
   .partial();
+
+export const UserOperationOverridesSchema =
+  UserOperationFeeOverridesSchema.extend({
+    paymasterAndData: HexSchema.optional(),
+  });
